@@ -100,9 +100,11 @@ if "last_result" not in st.session_state:
   st.session_state.last_result = None
 
 
-# 정답 제출 및 자동 다음 문제 전환 콜백 함수
+# 정답 제출, 검증, 입력창 초기화 및 자동 다음 문제 전환 콜백
 def check_answer():
   user_input = st.session_state.user_ans.strip()
+
+  # 아무것도 입력하지 않고 Enter 누른 경우 방지
   if not user_input:
     return
 
@@ -132,6 +134,9 @@ def check_answer():
         f"❌ 오답입니다. 이전 문제 정답: **{correct_display}**",
     )
 
+  # 🔥 입력창 비우기 (핵심 추가 포인트)
+  st.session_state.user_ans = ""
+
   # 바로 다음 문제 생성
   generate_quiz()
 
@@ -147,7 +152,7 @@ if st.session_state.last_result:
 st.markdown("---")
 st.subheader(st.session_state.quiz["prompt"])
 
-# 입력 창 (Enter 누르면 check_answer 실행)
+# 입력 창 (Enter 입력 시 check_answer 실행 후 자동 초기화)
 st.text_input(
     "정답을 입력하고 Enter를 누르세요",
     key="user_ans",
