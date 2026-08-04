@@ -32,7 +32,6 @@ ALL_NOTES = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
 
 st.title("🎸 재즈기타 단3도 반사 훈련")
 
-# 모드 옵션에 순방향(상행) 추가
 mode = st.radio(
     "연습 모드 선택",
     [
@@ -41,40 +40,33 @@ mode = st.radio(
         "3. 도미넌트 -> 단3도 그룹 찾기 (순서 무관)",
         "4. 무작위 상행/하행 퀴즈",
     ],
+    key="mode_select",
 )
 
-# Session State 초기화
-if "quiz" not in st.session_state:
-  st.session_state.quiz = None
-if "score" not in st.session_state:
-  st.session_state.score = {"correct": 0, "total": 0}
 
-
+# 문제 생성 함수
 def generate_quiz():
   note = random.choice(ALL_NOTES)
   target_group = next(notes for notes in GROUPS.values() if note in notes)
   idx = target_group.index(note)
 
-  # 1. 순방향 (상행)
-  if mode == "1. 순방향(상행) 단3도 맞추기":
+  current_mode = st.session_state.mode_select
+
+  if current_mode == "1. 순방향(상행) 단3도 맞추기":
     next_note = target_group[(idx + 1) % 4]
     st.session_state.quiz = {
         "type": "single",
         "prompt": f"기준 음 **[{note}]** 의 다음(상행/순방향) 단3도 음은?",
         "answer": next_note,
     }
-
-  # 2. 역방향 (하행)
-  elif mode == "2. 역방향(하행) 단3도 맞추기 (집중)":
+  elif current_mode == "2. 역방향(하행) 단3도 맞추기 (집중)":
     prev_note = target_group[(idx - 1) % 4]
     st.session_state.quiz = {
         "type": "single",
         "prompt": f"기준 음 **[{note}]** 의 바로 전(하행/역방향) 단3도 음은?",
         "answer": prev_note,
     }
-
-  # 3. 도미넌트 코드 연동 (순서 무관)
-  elif mode == "3. 도미넌트 -> 단3도 그룹 찾기 (순서 무관)":
+  elif current_mode == "3. 도미넌트 -> 단3도 그룹 찾기 (순서 무관)":
     dom = random.choice(list(DOMINANTS.keys()))
     group_name = DOMINANTS[dom]
     st.session_state.quiz = {
@@ -83,8 +75,6 @@ def generate_quiz():
         "answer_set": set(n.upper() for n in GROUPS[group_name]),
         "display_ans": " ".join(GROUPS[group_name]),
     }
-
-  # 4. 무작위 상행/하행
   else:
     direction = random.choice(["상행(위로)", "하행(아래로)"])
     ans = (
@@ -99,43 +89,71 @@ def generate_quiz():
     }
 
 
-col1, col2 = st.columns(2)
-with col1:
-  if st.button("🔄 새 문제 생성"):
-    generate_quiz()
-
-if st.session_state.quiz is None:
+# Session State 초기화
+if "quiz" not in st.session_state or st.session_state.get("prev_mode") != mode:
+  st.session_state.prev_mode = mode
   generate_quiz()
 
-st.markdown("---")
-st.subheader(st.session_state.quiz["prompt"])
+if "score" not in st.session_state:
+  st.session_state.score = {"correct": 0, "total": 0}
+if "last_result" not in st.session_state:
+  st.session_state.last_result = None
 
-user_input = st.text_input(
-    "정답 입력 (예: Eb, F# 또는 그룹 문제시 Ab B D F 등)", key="user_ans"
-)
 
-if st.button("정답 확인 🎯"):
+# 정답 제출 및 자동 다음 문제 전환 콜백 함수
+def check_answer():
+  user_input = st.session_state.user_ans.strip()
+  if not user_input:
+    return
+
   st.session_state.score["total"] += 1
 
-  # 단일 음 문제 (상행/하행/랜덤)
+  # 단일 음 검증
   if st.session_state.quiz["type"] == "single":
-    user_formatted = user_input.strip().upper()
+    user_formatted = user_input.upper()
     correct_formatted = st.session_state.quiz["answer"].upper()
     is_correct = user_formatted == correct_formatted
     correct_display = st.session_state.quiz["answer"]
 
-  # 4개 음 그룹 문제 (순서 무관)
+  # 그룹 음 검증 (순서 무관)
   else:
-    user_set = set(user_input.strip().upper().replace(",", " ").split())
+    user_set = set(user_input.upper().replace(",", " ").split())
     correct_set = st.session_state.quiz["answer_set"]
     is_correct = user_set == correct_set
     correct_display = st.session_state.quiz["display_ans"]
 
+  # 이전 결과 저장
   if is_correct:
-    st.success("🎉 정답입니다!")
     st.session_state.score["correct"] += 1
+    st.session_state.last_result = ("success", "🎉 정답입니다!")
   else:
-    st.error(f"❌ 오답입니다. 정답: **{correct_display}**")
+    st.session_state.last_result = (
+        "error",
+        f"❌ 오답입니다. 이전 문제 정답: **{correct_display}**",
+    )
+
+  # 바로 다음 문제 생성
+  generate_quiz()
+
+
+# 이전 문제 결과 표시
+if st.session_state.last_result:
+  res_type, res_msg = st.session_state.last_result
+  if res_type == "success":
+    st.success(res_msg)
+  else:
+    st.error(res_msg)
+
+st.markdown("---")
+st.subheader(st.session_state.quiz["prompt"])
+
+# 입력 창 (Enter 누르면 check_answer 실행)
+st.text_input(
+    "정답을 입력하고 Enter를 누르세요",
+    key="user_ans",
+    on_change=check_answer,
+    placeholder="예: Eb / F# / Ab B D F 등 입력 후 Enter",
+)
 
 st.markdown("---")
 st.write(
