@@ -92,6 +92,7 @@ def generate_quiz():
 # Session State 초기화
 if "quiz" not in st.session_state or st.session_state.get("prev_mode") != mode:
   st.session_state.prev_mode = mode
+  st.session_state.last_result = None
   generate_quiz()
 
 if "score" not in st.session_state:
@@ -100,7 +101,7 @@ if "last_result" not in st.session_state:
   st.session_state.last_result = None
 
 
-# 정답 제출, 검증, 입력창 초기화 및 자동 다음 문제 전환 콜백
+# 정답 제출 및 검증 콜백
 def check_answer():
   user_input = st.session_state.user_ans.strip()
 
@@ -114,37 +115,32 @@ def check_answer():
     user_formatted = user_input.upper()
     correct_formatted = st.session_state.quiz["answer"].upper()
     is_correct = user_formatted == correct_formatted
-    correct_display = st.session_state.quiz["answer"]
 
   # 그룹 음 검증 (순서 무관)
   else:
     user_set = set(user_input.upper().replace(",", " ").split())
     correct_set = st.session_state.quiz["answer_set"]
     is_correct = user_set == correct_set
-    correct_display = st.session_state.quiz["display_ans"]
 
-  # 이전 결과 저장
+  # 결과 처리
   if is_correct:
     st.session_state.score["correct"] += 1
-    st.session_state.last_result = ("success", "🎉 정답입니다!")
+    st.session_state.last_result = ("success", "🎉 정답입니다! 다음 문제로 넘어갑니다.")
+    st.session_state.user_ans = ""  # 정답일 때만 입력창 비우기
+    generate_quiz()  # 정답일 때만 다음 문제 생성
   else:
     st.session_state.last_result = (
         "error",
-        f"❌ 오답입니다. 이전 문제 정답: **{correct_display}**",
+        "❌ 오답입니다. 다시 한번 생각해보세요!",
     )
-
-  # 입력창 비우기
-  st.session_state.user_ans = ""
-
-  # 바로 다음 문제 생성
-  generate_quiz()
+    # 오답일 때는 generate_quiz()를 호출하지 않고 문제를 그대로 유지
 
 
 st.markdown("---")
 # 1. 문제 출력
 st.subheader(st.session_state.quiz["prompt"])
 
-# 2. 정답/오답 피드백을 입력창 바로 위로 배치
+# 2. 정답/오답 결과 메시지 표시
 if st.session_state.last_result:
   res_type, res_msg = st.session_state.last_result
   if res_type == "success":
@@ -152,7 +148,7 @@ if st.session_state.last_result:
   else:
     st.error(res_msg)
 
-# 3. 입력 창 (Enter 누르면 정답 제출)
+# 3. 입력 창
 st.text_input(
     "정답을 입력하고 Enter를 누르세요",
     key="user_ans",
@@ -163,5 +159,5 @@ st.text_input(
 st.markdown("---")
 st.write(
     f"📊 **현재 점수:** {st.session_state.score['correct']} /"
-    f" {st.session_state.score['total']} 회 정답"
+    f" {st.session_state.score['total']} 회 시도"
 )
