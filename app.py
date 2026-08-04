@@ -104,7 +104,6 @@ if "last_result" not in st.session_state:
 def check_answer():
   user_input = st.session_state.user_ans.strip()
 
-  # 아무것도 입력하지 않고 Enter 누른 경우 방지
   if not user_input:
     return
 
@@ -134,14 +133,18 @@ def check_answer():
         f"❌ 오답입니다. 이전 문제 정답: **{correct_display}**",
     )
 
-  # 🔥 입력창 비우기 (핵심 추가 포인트)
+  # 입력창 비우기
   st.session_state.user_ans = ""
 
   # 바로 다음 문제 생성
   generate_quiz()
 
 
-# 이전 문제 결과 표시
+st.markdown("---")
+# 1. 문제 출력
+st.subheader(st.session_state.quiz["prompt"])
+
+# 2. 정답/오답 피드백을 입력창 바로 위로 배치
 if st.session_state.last_result:
   res_type, res_msg = st.session_state.last_result
   if res_type == "success":
@@ -149,10 +152,7 @@ if st.session_state.last_result:
   else:
     st.error(res_msg)
 
-st.markdown("---")
-st.subheader(st.session_state.quiz["prompt"])
-
-# 입력 창 (Enter 입력 시 check_answer 실행 후 자동 초기화)
+# 3. 입력 창 (Enter 누르면 정답 제출)
 st.text_input(
     "정답을 입력하고 Enter를 누르세요",
     key="user_ans",
