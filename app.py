@@ -43,7 +43,7 @@ mode = st.radio(
 )
 
 
-# 문제 생성 함수
+# 새 문제 생성 함수
 def generate_quiz():
   note = random.choice(ALL_NOTES)
   target_group = next(notes for notes in GROUPS.values() if note in notes)
@@ -84,8 +84,9 @@ def generate_quiz():
         "answer": ans,
     }
 
-  # 선택된 음 패드 초기화
+  # 입력 선택값 및 상태 초기화
   st.session_state.selected_notes = []
+  st.session_state.last_result = None
 
 
 # State 초기화
@@ -101,7 +102,7 @@ if "selected_notes" not in st.session_state:
   st.session_state.selected_notes = []
 
 
-# 정답 확인 로직
+# 정답 검증 로직
 def submit_answer(user_input_list):
   st.session_state.score["total"] += 1
   quiz = st.session_state.quiz
@@ -110,64 +111,78 @@ def submit_answer(user_input_list):
     user_ans = user_input_list[0].upper()
     correct_ans = quiz["answer"].upper()
     is_correct = user_ans == correct_ans
-    correct_display = quiz["answer"]
   else:
     user_set = set(n.upper() for n in user_input_list)
     correct_set = quiz["answer_set"]
     is_correct = user_set == correct_set
-    correct_display = quiz["display_ans"]
 
   if is_correct:
     st.session_state.score["correct"] += 1
     st.session_state.last_result = ("success", "🎉 정답입니다!")
+    # 정답일 때만 다음 문제로 진행
+    generate_quiz()
   else:
+    # 오답일 경우: 문제를 넘기지 않고 다시 생각해보라는 메시지 출력 및 입력 초기화
+    wrong_notes_str = " ".join(user_input_list)
     st.session_state.last_result = (
-        "error",
-        f"❌ 오답입니다. 정답: **{correct_display}**",
+        "warning",
+        f"❌ **{wrong_notes_str}** 은(는) 오답입니다. 다시 한번 천천히 생각해 보세요!",
     )
+    st.session_state.selected_notes = []  # 다시 누를 수 있게 선택 초기화
 
-  generate_quiz()
 
-
-# 이전 결과 출력
+# 상단 결과 메세지 출력
 if st.session_state.last_result:
   res_type, res_msg = st.session_state.last_result
   if res_type == "success":
     st.success(res_msg)
-  else:
-    st.error(res_msg)
+  elif res_type == "warning":
+    st.warning(res_msg)
 
 st.markdown("---")
-st.subheader(st.session_state.quiz["prompt"])
 
-# 그룹 문제 시 현재 선택한 음 표시
+# 문제 화면 및 건너뛰기 버튼
+col_prompt, col_skip = st.columns([3, 1])
+with col_prompt:
+  st.subheader(st.session_state.quiz["prompt"])
+with col_skip:
+  if st.button("⏭️ 정답 확인 / 패스"):
+    if st.session_state.quiz["type"] == "single":
+      ans_text = st.session_state.quiz["answer"]
+    else:
+      ans_text = st.session_state.quiz["display_ans"]
+    st.session_state.last_result = (
+        "warning",
+        f"💡 이전 문제 정답: **{ans_text}**",
+    )
+    generate_quiz()
+    st.rerun()
+
+# 그룹 문제 시 선택한 음 표시
 if st.session_state.quiz["type"] == "group":
   st.write(
-      "선택한 음:"
+      "현재 선택한 음:"
       f" **{' '.join(st.session_state.selected_notes) if st.session_state.selected_notes else '없음'}**"
   )
 
-# --- 12개 음 패드 (버튼 입력) ---
+# --- 12개 음 패드 ---
 st.markdown("#### 👇 음 선택")
-cols = st.columns(4)  # 4열로 버튼 배치
+cols = st.columns(4)
 
 for i, note in enumerate(ALL_NOTES):
   col = cols[i % 4]
   if col.button(note, key=f"btn_{note}", use_container_width=True):
     if st.session_state.quiz["type"] == "single":
-      # 단일 음 문제는 클릭 즉시 제출
       submit_answer([note])
       st.rerun()
     else:
-      # 그룹 문제는 선택한 음을 리스트에 추가 (최대 4개)
       if len(st.session_state.selected_notes) < 4:
         st.session_state.selected_notes.append(note)
-        # 4개가 채워지면 자동 제출
         if len(st.session_state.selected_notes) == 4:
           submit_answer(st.session_state.selected_notes)
         st.rerun()
 
-# 그룹 문제용 보조 버튼 (지우기 / 제출)
+# 그룹 문제용 보조 버튼
 if st.session_state.quiz["type"] == "group":
   col_btn1, col_btn2 = st.columns(2)
   with col_btn1:
@@ -183,5 +198,5 @@ if st.session_state.quiz["type"] == "group":
 st.markdown("---")
 st.write(
     f"📊 **현재 점수:** {st.session_state.score['correct']} /"
-    f" {st.session_state.score['total']} 회 정답"
+    f" {st.session_state.score['total']} 회 시도"
 )
