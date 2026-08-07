@@ -30,6 +30,27 @@ DOMINANTS = {
 
 ALL_NOTES = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
 
+# 이명동음(Enharmonic) 표준화 맵 (어떤 입력이든 하나의 대표 표기로 정규화)
+ENHARMONIC_MAP = {
+    "C#": "DB",
+    "DB": "DB",
+    "D#": "EB",
+    "EB": "EB",
+    "F#": "GB",
+    "GB": "GB",
+    "G#": "AB",
+    "AB": "AB",
+    "A#": "BB",
+    "BB": "BB",
+}
+
+
+def normalize_note(note_str):
+  """음을 대문자로 만들고 이명동음을 표준 형태로 정규화하는 함수"""
+  note_upper = note_str.upper()
+  return ENHARMONIC_MAP.get(note_upper, note_upper)
+
+
 st.title("🎸 재즈기타 단3도 반사 훈련")
 
 mode = st.radio(
@@ -72,7 +93,8 @@ def generate_quiz():
     st.session_state.quiz = {
         "type": "group",
         "prompt": f"도미넌트 코드 **[{dom}]** 의 단3도 그룹 4개 음은?",
-        "answer_set": set(n.upper() for n in GROUPS[group_name]),
+        # 이명동음을 감안해 표준화된 음들의 집합으로 저장
+        "answer_set": set(normalize_note(n) for n in GROUPS[group_name]),
         "display_ans": " ".join(GROUPS[group_name]),
     }
   else:
@@ -88,7 +110,6 @@ def generate_quiz():
         "answer": ans,
     }
 
-  # 문제가 새롭게 생성될 때 틀린 횟수(fail_count) 초기화
   st.session_state.fail_count = 0
 
 
@@ -115,14 +136,17 @@ def check_answer():
 
   st.session_state.score["total"] += 1
 
-  # 정답 문자열 가져오기
+  # 단일 음 검증 (이명동음 정규화 비교)
   if st.session_state.quiz["type"] == "single":
-    user_formatted = user_input.upper()
-    correct_formatted = st.session_state.quiz["answer"].upper()
+    user_formatted = normalize_note(user_input)
+    correct_formatted = normalize_note(st.session_state.quiz["answer"])
     is_correct = user_formatted == correct_formatted
     correct_display = st.session_state.quiz["answer"]
+
+  # 그룹 음 검증 (이명동음 정규화 후 집합 비교)
   else:
-    user_set = set(user_input.upper().replace(",", " ").split())
+    raw_user_list = user_input.replace(",", " ").split()
+    user_set = set(normalize_note(n) for n in raw_user_list)
     correct_set = st.session_state.quiz["answer_set"]
     is_correct = user_set == correct_set
     correct_display = st.session_state.quiz["display_ans"]
@@ -135,18 +159,17 @@ def check_answer():
         "🎉 정답입니다! 다음 문제로 넘어갑니다.",
     )
     st.session_state.user_ans = ""  # 입력창 비우기
-    generate_quiz()  # 정답일 때 다음 문제 진행
+    generate_quiz()
   else:
-    st.session_state.fail_count += 1  # 틀린 횟수 1 증가
+    st.session_state.fail_count += 1
 
-    # 3번 틀렸을 경우 정답 공개 후 다음 문제로 스킵
     if st.session_state.fail_count >= 3:
       st.session_state.last_result = (
           "error",
           f"❌ 3회 실패! 정답은 **[{correct_display}]** 입니다. 다음 문제로"
           " 넘어갑니다.",
       )
-      st.session_state.user_ans = ""  # 입력창 비우기
+      st.session_state.user_ans = ""
       generate_quiz()
     else:
       remaining = 3 - st.session_state.fail_count
@@ -173,7 +196,7 @@ st.text_input(
     "정답을 입력하고 Enter를 누르세요",
     key="user_ans",
     on_change=check_answer,
-    placeholder="예: Eb / F# / Ab B D F 등 입력 후 Enter",
+    placeholder="예: Eb / F# (또는 Gb) / Ab B D F 등 입력 후 Enter",
 )
 
 st.markdown("---")
