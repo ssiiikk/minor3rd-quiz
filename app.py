@@ -88,6 +88,9 @@ def generate_quiz():
         "answer": ans,
     }
 
+  # 문제가 새롭게 생성될 때 틀린 횟수(fail_count) 초기화
+  st.session_state.fail_count = 0
+
 
 # Session State 초기화
 if "quiz" not in st.session_state or st.session_state.get("prev_mode") != mode:
@@ -99,6 +102,8 @@ if "score" not in st.session_state:
   st.session_state.score = {"correct": 0, "total": 0}
 if "last_result" not in st.session_state:
   st.session_state.last_result = None
+if "fail_count" not in st.session_state:
+  st.session_state.fail_count = 0
 
 
 # 정답 제출 및 검증 콜백
@@ -110,30 +115,45 @@ def check_answer():
 
   st.session_state.score["total"] += 1
 
-  # 단일 음 검증
+  # 정답 문자열 가져오기
   if st.session_state.quiz["type"] == "single":
     user_formatted = user_input.upper()
     correct_formatted = st.session_state.quiz["answer"].upper()
     is_correct = user_formatted == correct_formatted
-
-  # 그룹 음 검증 (순서 무관)
+    correct_display = st.session_state.quiz["answer"]
   else:
     user_set = set(user_input.upper().replace(",", " ").split())
     correct_set = st.session_state.quiz["answer_set"]
     is_correct = user_set == correct_set
+    correct_display = st.session_state.quiz["display_ans"]
 
   # 결과 처리
   if is_correct:
     st.session_state.score["correct"] += 1
-    st.session_state.last_result = ("success", "🎉 정답입니다! 다음 문제로 넘어갑니다.")
-    st.session_state.user_ans = ""  # 정답일 때만 입력창 비우기
-    generate_quiz()  # 정답일 때만 다음 문제 생성
-  else:
     st.session_state.last_result = (
-        "error",
-        "❌ 오답입니다. 다시 한번 생각해보세요!",
+        "success",
+        "🎉 정답입니다! 다음 문제로 넘어갑니다.",
     )
-    # 오답일 때는 generate_quiz()를 호출하지 않고 문제를 그대로 유지
+    st.session_state.user_ans = ""  # 입력창 비우기
+    generate_quiz()  # 정답일 때 다음 문제 진행
+  else:
+    st.session_state.fail_count += 1  # 틀린 횟수 1 증가
+
+    # 3번 틀렸을 경우 정답 공개 후 다음 문제로 스킵
+    if st.session_state.fail_count >= 3:
+      st.session_state.last_result = (
+          "error",
+          f"❌ 3회 실패! 정답은 **[{correct_display}]** 입니다. 다음 문제로"
+          " 넘어갑니다.",
+      )
+      st.session_state.user_ans = ""  # 입력창 비우기
+      generate_quiz()
+    else:
+      remaining = 3 - st.session_state.fail_count
+      st.session_state.last_result = (
+          "error",
+          f"❌ 오답입니다. 다시 한번 생각해보세요! (기회 {remaining}회 남음)",
+      )
 
 
 st.markdown("---")
